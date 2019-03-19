@@ -1,8 +1,44 @@
 import warnings
-
+from functools import wraps
+from collections import abc
+from keyword import iskeyword
 from .common import ClientExperimentalWarning
 from ..compatpatch import ClientCompatPatch
 from ..utils import raise_if_invalid_rank_token
+
+
+class FrozenJSON:
+  
+    def __new__(cls, arg):
+        if isinstance(arg, abc.Mapping):
+            return super().__new__(cls)
+        elif isinstance(arg, abc.MutableSequence):
+            return [cls(item) for item in arg]
+        else:
+            return arg
+    def __init__(self, mapping):
+        self.__data = {}
+        for key, value in mapping.items():
+            if iskeyword(key):
+                key += '_'
+            self.__data[key] = value
+    def __getattr__(self, name):
+        if hasattr(self.__data, name):
+            return getattr(self.__data, name)
+        else:
+            return FrozenJSON(self.__data[name])
+    
+    
+    def __repr__(self):
+        return str(self.__data.items())
+        
+
+
+def jsonize(func):
+    wraps(func)
+    def _jsonize(self, *arg, **kw):
+        return FrozenJSON(func(self, *arg, **kw))
+    return _jsonize
 
 
 class FriendshipsEndpointsMixin(object):
@@ -18,6 +54,7 @@ class FriendshipsEndpointsMixin(object):
              for user in res['users']]
         return res
 
+    @jsonize
     def user_following(self, user_id, rank_token, **kwargs):
         """
         Get user followings
@@ -42,7 +79,7 @@ class FriendshipsEndpointsMixin(object):
             [ClientCompatPatch.list_user(u, drop_incompat_keys=self.drop_incompat_keys)
              for u in res.get('users', [])]
         return res
-
+    @jsonize
     def user_followers(self, user_id, rank_token, **kwargs):
         """
         Get user followers
@@ -67,7 +104,7 @@ class FriendshipsEndpointsMixin(object):
             [ClientCompatPatch.list_user(u, drop_incompat_keys=self.drop_incompat_keys)
              for u in res.get('users', [])]
         return res
-
+    @jsonize
     def friendships_pending(self):
         """Get pending follow requests"""
         res = self._call_api('friendships/pending/')
@@ -75,7 +112,7 @@ class FriendshipsEndpointsMixin(object):
             [ClientCompatPatch.list_user(u, drop_incompat_keys=self.drop_incompat_keys)
              for u in res.get('users', [])]
         return res
-
+    @jsonize
     def friendships_show(self, user_id):
         """
         Get friendship status with user id
@@ -99,7 +136,7 @@ class FriendshipsEndpointsMixin(object):
         endpoint = 'friendships/show/{user_id!s}/'.format(**{'user_id': user_id})
         res = self._call_api(endpoint)
         return res
-
+    @jsonize
     def friendships_show_many(self, user_ids):
         """
         Get friendship status with mulitple user ids
@@ -130,7 +167,7 @@ class FriendshipsEndpointsMixin(object):
         }
         res = self._call_api('friendships/show_many/', params=params, unsigned=True)
         return res
-
+    @jsonize 
     def friendships_create(self, user_id):
         """
         Follow a user
@@ -156,7 +193,7 @@ class FriendshipsEndpointsMixin(object):
         params.update(self.authenticated_params)
         res = self._call_api(endpoint, params=params)
         return res
-
+    @jsonize
     def friendships_destroy(self, user_id, **kwargs):
         """
         Unfollow a user
@@ -184,6 +221,7 @@ class FriendshipsEndpointsMixin(object):
         res = self._call_api(endpoint, params=params)
         return res
 
+    @jsonize
     def friendships_block(self, user_id):
         """
         Block a user
@@ -210,6 +248,7 @@ class FriendshipsEndpointsMixin(object):
         res = self._call_api(endpoint, params=params)
         return res
 
+    @jsonize
     def friendships_unblock(self, user_id):
         """
         Unblock a user
@@ -236,6 +275,7 @@ class FriendshipsEndpointsMixin(object):
         res = self._call_api(endpoint, params=params)
         return res
 
+    @jsonize
     def block_friend_reel(self, user_id):
         """
         Hide your stories from a specific user
@@ -261,7 +301,7 @@ class FriendshipsEndpointsMixin(object):
         params.update(self.authenticated_params)
         res = self._call_api(endpoint, params=params)
         return res
-
+    @jsonize
     def unblock_friend_reel(self, user_id):
         """
         Unhide your stories from a specific user
@@ -285,7 +325,7 @@ class FriendshipsEndpointsMixin(object):
         endpoint = 'friendships/unblock_friend_reel/{user_id!s}/'.format(**{'user_id': user_id})
         res = self._call_api(endpoint, params=self.authenticated_params)
         return res
-
+    @jsonize
     def set_reel_block_status(self, user_ids, block_status='block'):
         """
         Unhide your stories from a specific user
@@ -329,7 +369,7 @@ class FriendshipsEndpointsMixin(object):
         params['user_block_statuses'] = user_block_statuses
         params.update(self.authenticated_params)
         return self._call_api('friendships/set_reel_block_status/', params=params)
-
+    @jsonize
     def blocked_reels(self):
         """
         Get list of users from whom you've hid your stories
@@ -340,7 +380,8 @@ class FriendshipsEndpointsMixin(object):
             [ClientCompatPatch.list_user(u, drop_incompat_keys=self.drop_incompat_keys)
              for u in res.get('users', [])]
         return res
-
+    
+    @jsonize
     def enable_post_notifications(self, user_id):
         """
         Turn on post notifications for specified user.
@@ -352,7 +393,7 @@ class FriendshipsEndpointsMixin(object):
             'friendships/favorite/{user_id!s}/'.format(**{'user_id': user_id}),
             params=self.authenticated_params)
         return res
-
+    @jsonize
     def disable_post_notifications(self, user_id):
         """
         Turn off post notifications for specified user.
@@ -364,7 +405,7 @@ class FriendshipsEndpointsMixin(object):
             'friendships/unfavorite/{user_id!s}/'.format(**{'user_id': user_id}),
             params=self.authenticated_params)
         return res
-
+    @jsonize
     def ignore_user(self, user_id):
         """
         Ignore a user's follow request.
@@ -378,7 +419,7 @@ class FriendshipsEndpointsMixin(object):
             'friendships/ignore/{user_id!s}/'.format(**{'user_id': user_id}),
             params=params)
         return res
-
+    @jsonize
     def remove_follower(self, user_id):
         """
         Remove a follower.
